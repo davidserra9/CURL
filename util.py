@@ -19,9 +19,8 @@ import torch
 
 import matplotlib
 import sys
-matplotlib.use('agg')
+#matplotlib.use('agg')
 np.set_printoptions(threshold=sys.maxsize)
-
 
 class ImageProcessing(object):
 
