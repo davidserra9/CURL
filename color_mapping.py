@@ -14,6 +14,7 @@ from util import ImageProcessing
 CHECKPOINT_PATH = "./pretrained_models/adobe_dpe/curl_validpsnr_23.073045286204017_validloss_0.0701291635632515_testpsnr_23.584083321292365_testloss_0.061363041400909424_epoch_510_model.pt"
 IMAGE_BASE_PATH = "color_naming_images/0000"
 OUTPUT_BASE_PATH = "output_images/"
+
 def evaluate(img, convert_uint = False):
     """
     Evaluate the modle per image instance. Image of Batch size 1.
@@ -55,7 +56,8 @@ if __name__ == '__main__':
         ax[idx, 0].set_title(img_path.split('/')[-1])
         ax[idx, 1].imshow(evaluate(img_path, convert_uint=False))
         ax[idx, 1].set_title('result')
-        out_path = OUTPUT_BASE_PATH + img_path.split('/')[-1]
+        out_path = OUTPUT_BASE_PATH + img_path.split('/')[-1].split('.')[0] + '_artifact' + '.png'
+
         if out_path[-3:] == 'dng':
             out_path = out_path[:-3] + 'png'
 
