@@ -3,8 +3,9 @@ import cv2
 from PIL import Image
 import torchvision.transforms.functional as TF
 from glob import glob
-
+from scipy.io import loadmat
 import matplotlib.pyplot as plt
+from functools import reduce
 
 import numpy as np
 
@@ -15,14 +16,19 @@ CHECKPOINT_PATH = "./pretrained_models/adobe_dpe/curl_validpsnr_23.0730452862040
 IMAGE_BASE_PATH = "color_naming_images/0000"
 OUTPUT_BASE_PATH = "output_images/"
 
+def analogic_or(masks):
+    return reduce(lambda x, y: x | y, masks)
+
 def evaluate(img, convert_uint = False):
     """
     Evaluate the modle per image instance. Image of Batch size 1.
     """
     # Load image and convert to tensor
-    img = Image.open(img)
-    if img.mode != 'RGB':
-        img = img.convert('RGB')
+    if isinstance(img, str):
+        img = Image.open(img)
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+
     img = TF.to_tensor(img).to(DEVICE)
 
     with torch.no_grad():
@@ -50,21 +56,55 @@ if __name__ == '__main__':
     # plt.imshow(im)
     # plt.show()
 
-    fig, ax = plt.subplots(len(glob(IMAGE_BASE_PATH + '*ng')), 2)
-    for idx, img_path in enumerate(glob(IMAGE_BASE_PATH + '*ng')):
-        ax[idx, 0].imshow(np.array(Image.open(img_path)))
-        ax[idx, 0].set_title(img_path.split('/')[-1])
-        ax[idx, 1].imshow(evaluate(img_path, convert_uint=False))
-        ax[idx, 1].set_title('result')
-        out_path = OUTPUT_BASE_PATH + img_path.split('/')[-1].split('.')[0] + '_artifact' + '.png'
+    COLORS = ['Black', 'Blue', 'Brown', 'Grey', 'Green', 'Orange', 'Pink', 'Purple', 'Red', 'White', 'Yellow']
+    COLOR_CAT = [[2, 5, 10], [0, 3, 9], [6, 7], [8], [4], [1]]
 
-        if out_path[-3:] == 'dng':
-            out_path = out_path[:-3] + 'png'
+    # Load the color naming matrix
+    mat = loadmat('/home/david/Downloads/wetransfer_imatges_2023-05-12_1337/Color_naming/ColorNaming/w2c.mat')['w2c']
 
-        cv2.imwrite(out_path, evaluate(img_path, convert_uint=True)[..., ::-1])
+    im = Image.open('/home/david/Downloads/wetransfer_imatges_2023-05-12_1337/reduced/001.png')
+    im = np.array(im)
 
+    index_im = 1+np.floor(im[...,0].flatten()/8).astype(int) + 32*np.floor(im[...,1].flatten()/8).astype(int) + 32*32*np.floor(im[...,2].flatten()/8).astype(int)
+
+    out_images = []
+    threshold = 0.1
+
+    for w2cM in mat.T:
+        out = w2cM[index_im].reshape(im.shape[:2])
+
+        # out = np.greater_equal(out, threshold).astype(int)
+
+        # output_image = im * np.expand_dims(out, axis=2)
+        out_images.append(out)
+
+    color_masks = []
+    color_probs = []
+    for category in COLOR_CAT:
+        color_masks.append(analogic_or(
+            [im * np.expand_dims(np.greater_equal(out_images[i], threshold).astype(int), axis=2) for i in
+             category]).astype(int))
+        color_probs.append(np.sum([out_images[i] for i in category], axis=0))
+
+    curl_images = []
+    for color_mask in color_masks:
+        curl_images.append(evaluate(Image.fromarray(color_mask.astype(np.uint8)).convert("RGB"), convert_uint=True))
+
+    reconstructed_im = np.sum([np.round((m * np.expand_dims(p, axis=2))).astype('uint8') for m, p in zip(curl_images, color_probs)], axis=0)
+
+    fig = plt.figure(figsize=(20,5))
+    plt.subplot(1, 8, 1)
+    plt.imshow(im)
+    plt.title("Original")
+
+    for idx, (c, t) in enumerate(zip(curl_images, ["Ora-Bro-Yel", "Ach", "Pin-Pur", "Red", "Gre", "Blu"])):
+        plt.subplot(1, 8, idx+2)
+        plt.title(t)
+        plt.imshow(c)
+
+    plt.subplot(1, 8, 8)
+    plt.title("Blend w/ probs")
+    plt.imshow(reconstructed_im)
     plt.show()
-
-
 
 
