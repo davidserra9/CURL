@@ -303,7 +303,7 @@ class Adobe5kDataLoader(DataLoader):
                         self.data_dict[idx_tmp]['input_img'] = root + \
                             "/" + input_img_filepath
 
-                    elif ("output" in root):  # change this to the name of your
+                    elif ("expertC_gt" in root):  # change this to the name of your
                                              # output data folder
 
                         output_img_filepath = file

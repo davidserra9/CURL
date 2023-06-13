@@ -297,5 +297,4 @@ class TEDModel(nn.Module):
 
         """
         output_img= self.ted(img.float())
-
         return self.final_conv(self.refpad(output_img))

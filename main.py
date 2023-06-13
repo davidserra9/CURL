@@ -39,7 +39,6 @@ np.set_printoptions(threshold=sys.maxsize)
 def main():
 
     print("*** Before running this code ensure you keep the default batch size of 1. The code has not been engineered to support higher batch sizes. See README for more detail. Remove the exit() statement to use code. ***")
-    exit()
 
     writer = SummaryWriter()
 
@@ -98,8 +97,10 @@ def main():
         '''
         assert(BATCH_SIZE==1)
 
+        # inference_data_loader = Adobe5kDataLoader(data_dirpath=inference_img_dirpath,
+        #                                           img_ids_filepath=inference_img_dirpath+"/images_inference.txt")
         inference_data_loader = Adobe5kDataLoader(data_dirpath=inference_img_dirpath,
-                                                  img_ids_filepath=inference_img_dirpath+"/images_inference.txt")
+                                                  img_ids_filepath="adobe5k_dpe/images_test.txt")
         inference_data_dict = inference_data_loader.load_data()
         inference_dataset = Dataset(data_dict=inference_data_dict,
                                     transform=transforms.Compose([transforms.ToTensor()]), normaliser=1,
@@ -130,18 +131,18 @@ def main():
         assert(BATCH_SIZE==1)
 
         training_data_loader = Adobe5kDataLoader(data_dirpath=training_img_dirpath,
-                                                 img_ids_filepath=training_img_dirpath+"/images_train.txt")
+                                                 img_ids_filepath="adobe5k_dpe/images_train.txt")
         training_data_dict = training_data_loader.load_data()
 
         training_dataset = Dataset(data_dict=training_data_dict, normaliser=1, is_valid=False)
 
         validation_data_loader = Adobe5kDataLoader(data_dirpath=training_img_dirpath,
-                                               img_ids_filepath=training_img_dirpath+"/images_valid.txt")
+                                               img_ids_filepath="adobe5k_dpe/images_valid.txt")
         validation_data_dict = validation_data_loader.load_data()
         validation_dataset = Dataset(data_dict=validation_data_dict, normaliser=1, is_valid=True)
 
         testing_data_loader = Adobe5kDataLoader(data_dirpath=training_img_dirpath,
-                                            img_ids_filepath=training_img_dirpath+"/images_test.txt")
+                                            img_ids_filepath="adobe5k_dpe/images_test.txt")
         testing_data_dict = testing_data_loader.load_data()
         testing_dataset = Dataset(data_dict=testing_data_dict, normaliser=1,is_valid=True)
 
