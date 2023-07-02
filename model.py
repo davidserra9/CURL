@@ -197,7 +197,7 @@ class CURLLoss(nn.Module):
         for i in range(0, num_images):
 
             target_img = target_img_batch[i, :, :, :].cuda()
-            predicted_img = predicted_img_batch[i, :, :, :].cuda()
+            predicted_img = predicted_img_batch[i, :, :, :].cuda().to(torch.float32)
 
             predicted_img_lab = torch.clamp(
                 ImageProcessing.rgb_to_lab(predicted_img.squeeze(0)), 0, 1)
@@ -293,12 +293,9 @@ class CURLLayer(nn.Module):
         self.lab_layer6 = MaxPoolBlock()
         self.lab_layer7 = ConvBlock(64, 64)
         self.lab_layer8 = GlobalPoolingBlock(2)
+        self.dropout1 = nn.Dropout(0.5)
 
         self.fc_lab = torch.nn.Linear(64, 48)
-
-        self.dropout1 = nn.Dropout(0.5)
-        self.dropout2 = nn.Dropout(0.5)
-        self.dropout3 = nn.Dropout(0.5)
 
         self.rgb_layer1 = ConvBlock(64, 64)
         self.rgb_layer2 = MaxPoolBlock()
@@ -308,6 +305,7 @@ class CURLLayer(nn.Module):
         self.rgb_layer6 = MaxPoolBlock()
         self.rgb_layer7 = ConvBlock(64, 64)
         self.rgb_layer8 = GlobalPoolingBlock(2)
+        self.dropout2 = nn.Dropout(0.5)
 
         self.fc_rgb = torch.nn.Linear(64, 48)
 
@@ -319,6 +317,7 @@ class CURLLayer(nn.Module):
         self.hsv_layer6 = MaxPoolBlock()
         self.hsv_layer7 = ConvBlock(64, 64)
         self.hsv_layer8 = GlobalPoolingBlock(2)
+        self.dropout3 = nn.Dropout(0.5)
 
         self.fc_hsv = torch.nn.Linear(64, 64)
 
@@ -328,7 +327,7 @@ class CURLLayer(nn.Module):
         :param x: forward the data x through the network 
         :returns: Tensor representing the predicted image
         :rtype: Tensor
-
+        W, H, 64
         """
 
         '''
@@ -359,6 +358,7 @@ class CURLLayer(nn.Module):
         x = self.lab_layer8(x)
         x = x.view(x.size()[0], -1)
         x = self.dropout1(x)
+        # TODO: mascara i components a 0
         L = self.fc_lab(x)
 
         img_lab, gradient_regulariser_lab = ImageProcessing.adjust_lab(
@@ -518,8 +518,7 @@ class GlobalPoolingBlock(Block, nn.Module):
         out = self.avg_pool(x)
         return out
 
-
-class CURLNet(nn.Module):
+class CURLNet_original(nn.Module):
 
     def __init__(self):
         """Initialisation function
@@ -528,7 +527,7 @@ class CURLNet(nn.Module):
         :rtype: N/A
 
         """
-        super(CURLNet, self).__init__()
+        super(CURLNet_original, self).__init__()
         self.tednet = rgb_ted.TEDModel()
         self.curllayer = CURLLayer()
 
@@ -543,3 +542,79 @@ class CURLNet(nn.Module):
         feat = self.tednet(img)
         img, gradient_regulariser = self.curllayer(feat)
         return img, gradient_regulariser
+
+
+class CURLNet(nn.Module):
+
+    def __init__(self):
+        """Initialisation function
+
+        :returns: initialises parameters of the neural networ
+        :rtype: N/A
+
+        """
+        super(CURLNet, self).__init__()
+        self.tednet = rgb_ted.TEDModel().ted.eval()
+
+        self.curllayer = nn.Sequential(
+            rgb_ted.TEDModel().final_conv,
+            rgb_ted.TEDModel().refpad,
+            CURLLayer())
+
+    def forward(self, img):
+        """Neural network forward function
+
+        :param img: forward the data img through the network
+        :returns: residual image
+        :rtype: numpy ndarray
+
+        """
+        feat = self.tednet(img)
+
+        """Color Naming"""
+        from scipy.io import loadmat
+
+        MATPATH = "/home/david/Downloads/wetransfer_imatges_2023-05-12_1337/Color_naming/ColorNaming/w2c.mat"
+        COLOR_CATEGORIES = [[2, 5, 10], [0, 3, 9], [6, 7], [8], [4], [1]]
+        THRESHOLD = 0.1
+
+        mat = loadmat(MATPATH)['w2c']
+        img = feat.squeeze(0).permute(1, 2, 0).detach().cpu().numpy()
+        index_im = np.floor(img[..., 0].flatten() / 8).astype(int) + 32 * np.floor(img[..., 1].flatten() / 8).astype(
+            int) + 32 * 32 * np.floor(img[..., 2].flatten() / 8).astype(int)
+        prob_maps = []
+        for idx, w2cM in enumerate(mat.T):
+            map = w2cM[index_im].reshape(img.shape[:2])
+            prob_maps.append(map)
+
+        mask_images = []
+        prob_images = []
+        for idx, category in enumerate(COLOR_CATEGORIES):
+
+            mask = img * np.expand_dims(analogic_or([np.greater_equal(prob_maps[i], THRESHOLD).astype(int) for i in category]).astype(int), axis=2)
+            prob = np.sum([prob_maps[i] for i in category], axis=0)
+
+            mask_images.append(mask)
+            prob_images.append(prob)
+
+        curl_images = []
+        for idx, (input_tensor, map) in enumerate(zip(mask_images, prob_images)):
+            input_tensor = torch.from_numpy(input_tensor).float().permute(2, 0, 1).unsqueeze(0).cuda()
+            net_output_img_example, _ = self.curllayer(input_tensor)
+
+            map = torch.from_numpy(map).unsqueeze(0)
+            net_output_img_example = net_output_img_example.squeeze(0) * map.cuda()
+
+            curl_images.append(net_output_img_example)
+
+        reconstructed_img = torch.sum(torch.stack(curl_images), dim=0)
+
+        return reconstructed_img.unsqueeze(0), _
+
+        #img, gradient_regulariser = self.curllayer(feat)
+        #return img, gradient_regulariser
+
+
+from functools import reduce
+def analogic_or(masks):
+    return reduce(lambda x, y: x | y, masks)

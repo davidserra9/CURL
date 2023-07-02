@@ -223,6 +223,7 @@ def main():
                 start_time = time.time()
                 net_img_batch, gradient_regulariser = net(
                     input_img_batch)
+
                 net_img_batch = torch.clamp(
                     net_img_batch, 0.0, 1.0)
 
@@ -317,7 +318,7 @@ def main():
                     torch.save({
                         'epoch': epoch+1,
                          'model_state_dict': net.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict(),
+                         'optimizer_state_dict': optimizer.state_dict(),
                          'loss': loss,
                          }, snapshot_path)
 
