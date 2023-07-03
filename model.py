@@ -554,7 +554,7 @@ class CURLNet(nn.Module):
 
         """
         super(CURLNet, self).__init__()
-        self.tednet = rgb_ted.TEDModel().ted.eval()
+        self.tednet = rgb_ted.TEDModel().ted
 
         self.curllayer = nn.Sequential(
             rgb_ted.TEDModel().final_conv,
@@ -573,6 +573,7 @@ class CURLNet(nn.Module):
 
         """Color Naming"""
         from scipy.io import loadmat
+        from torchvision.transforms.functional import to_tensor
 
         MATPATH = "/home/david/Downloads/wetransfer_imatges_2023-05-12_1337/Color_naming/ColorNaming/w2c.mat"
         COLOR_CATEGORIES = [[2, 5, 10], [0, 3, 9], [6, 7], [8], [4], [1]]
@@ -590,16 +591,17 @@ class CURLNet(nn.Module):
         mask_images = []
         prob_images = []
         for idx, category in enumerate(COLOR_CATEGORIES):
-
-            mask = img * np.expand_dims(analogic_or([np.greater_equal(prob_maps[i], THRESHOLD).astype(int) for i in category]).astype(int), axis=2)
+            mask = np.expand_dims(
+                analogic_or([np.greater_equal(prob_maps[i], THRESHOLD).astype(int) for i in category]).astype(int),
+                axis=2)
             prob = np.sum([prob_maps[i] for i in category], axis=0)
 
             mask_images.append(mask)
             prob_images.append(prob)
 
         curl_images = []
-        for idx, (input_tensor, map) in enumerate(zip(mask_images, prob_images)):
-            input_tensor = torch.from_numpy(input_tensor).float().permute(2, 0, 1).unsqueeze(0).cuda()
+        for idx, (mask, map) in enumerate(zip(mask_images, prob_images)):
+            input_tensor = feat * torch.from_numpy(mask).float().permute(2, 0, 1).unsqueeze(0).cuda()
             net_output_img_example, _ = self.curllayer(input_tensor)
 
             map = torch.from_numpy(map).unsqueeze(0)
@@ -614,7 +616,7 @@ class CURLNet(nn.Module):
         #img, gradient_regulariser = self.curllayer(feat)
         #return img, gradient_regulariser
 
-
 from functools import reduce
 def analogic_or(masks):
     return reduce(lambda x, y: x | y, masks)
+
