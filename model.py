@@ -23,6 +23,9 @@ from torch.autograd import Variable
 import math
 from math import exp
 import torch.nn.functional as F
+from scipy.io import loadmat
+import copy
+from torchvision.transforms.functional import to_tensor
 
 np.set_printoptions(threshold=sys.maxsize)
 
@@ -258,7 +261,6 @@ class CURLLoss(nn.Module):
 
         return curl_loss
 
-
 class CURLLayer(nn.Module):
 
     import torch.nn.functional as F
@@ -324,7 +326,7 @@ class CURLLayer(nn.Module):
     def forward(self, x):
         """Forward function for the CURL layer
 
-        :param x: forward the data x through the network 
+        :param x: forward the data x through the network
         :returns: Tensor representing the predicted image
         :rtype: Tensor
         W, H, 64
@@ -334,7 +336,6 @@ class CURLLayer(nn.Module):
         This function is where the magic happens :)
         '''
         x.contiguous()  # remove memory holes
-
         feat = x[:, 3:64, :, :]
         img = x[:, 0:3, :, :]
 
@@ -348,6 +349,7 @@ class CURLLayer(nn.Module):
         feat_lab = torch.cat((feat, img_lab.unsqueeze(0)), 1)
 
         x = self.lab_layer1(feat_lab)
+        # TODO: despres de cada capa, mascara per no propagar
         del feat_lab
         x = self.lab_layer2(x)
         x = self.lab_layer3(x)
@@ -356,6 +358,7 @@ class CURLLayer(nn.Module):
         x = self.lab_layer6(x)
         x = self.lab_layer7(x)
         x = self.lab_layer8(x)
+
         x = x.view(x.size()[0], -1)
         x = self.dropout1(x)
         # TODO: mascara i components a 0
@@ -365,7 +368,7 @@ class CURLLayer(nn.Module):
             img_lab.squeeze(0), L[0, 0:48])
         img_rgb = ImageProcessing.lab_to_rgb(img_lab.squeeze(0))
         img_rgb = torch.clamp(img_rgb, 0, 1)
-
+        # TODO: mirar img_rgb del model entrenat
         feat_rgb = torch.cat((feat, img_rgb.unsqueeze(0)), 1)
 
         x = self.rgb_layer1(feat_rgb)
@@ -414,6 +417,182 @@ class CURLLayer(nn.Module):
             gradient_regulariser_lab+gradient_regulariser_hsv
 
         return img, gradient_regulariser
+
+class CURLLayer_new(nn.Module):
+
+    import torch.nn.functional as F
+
+    def __init__(self, num_in_channels=64, num_out_channels=64):
+        """Initialisation of class
+
+        :param num_in_channels: number of input channels
+        :param num_out_channels: number of output channels
+        :returns: N/A
+        :rtype: N/A
+
+        """
+        super(CURLLayer_new, self).__init__()
+
+        self.num_in_channels = num_in_channels
+        self.num_out_channels = num_out_channels
+        self.make_init_network()
+
+    def make_init_network(self):
+        """ Initialise the CURL block layers
+
+        :returns: N/A
+        :rtype: N/A
+
+        """
+        self.lab_layer1 = ConvBlock(64, 64)
+        self.lab_layer2 = MaxPoolBlock()
+        self.lab_layer3 = ConvBlock(64, 64)
+        self.lab_layer4 = MaxPoolBlock()
+        self.lab_layer5 = ConvBlock(64, 64)
+        self.lab_layer6 = MaxPoolBlock()
+        self.lab_layer7 = ConvBlock(64, 64)
+        self.lab_layer8 = GlobalPoolingBlock(2)
+        self.dropout1 = nn.Dropout(0.5)
+
+        self.fc_lab = torch.nn.Linear(64, 48)
+
+        self.rgb_layer1 = ConvBlock(64, 64)
+        self.rgb_layer2 = MaxPoolBlock()
+        self.rgb_layer3 = ConvBlock(64, 64)
+        self.rgb_layer4 = MaxPoolBlock()
+        self.rgb_layer5 = ConvBlock(64, 64)
+        self.rgb_layer6 = MaxPoolBlock()
+        self.rgb_layer7 = ConvBlock(64, 64)
+        self.rgb_layer8 = GlobalPoolingBlock(2)
+        self.dropout2 = nn.Dropout(0.5)
+
+        self.fc_rgb = torch.nn.Linear(64, 48)
+
+        self.hsv_layer1 = ConvBlock(64, 64)
+        self.hsv_layer2 = MaxPoolBlock()
+        self.hsv_layer3 = ConvBlock(64, 64)
+        self.hsv_layer4 = MaxPoolBlock()
+        self.hsv_layer5 = ConvBlock(64, 64)
+        self.hsv_layer6 = MaxPoolBlock()
+        self.hsv_layer7 = ConvBlock(64, 64)
+        self.hsv_layer8 = GlobalPoolingBlock(2)
+        self.dropout3 = nn.Dropout(0.5)
+
+        self.fc_hsv = torch.nn.Linear(64, 64)
+
+    def forward(self, x, cn_x):
+        """Forward function for the CURL layer
+
+        :param x: forward the data x through the network 
+        :returns: Tensor representing the predicted image
+        :rtype: Tensor
+        W, H, 64
+        """
+
+        '''
+        This function is where the magic happens :)
+        '''
+        x.contiguous()  # remove memory holes
+        feat = x[:, 3:64, :, :]
+        img = x[:, 0:3, :, :]
+
+        torch.cuda.empty_cache()
+        shape = x.shape
+
+        img_clamped = torch.clamp(img, 0, 1)
+        img_lab = torch.clamp(ImageProcessing.rgb_to_lab(
+            img_clamped.squeeze(0)), 0, 1)
+
+        feat_lab = torch.cat((feat, img_lab.unsqueeze(0)), 1)
+
+        x = self.lab_layer1(feat_lab)
+        del feat_lab
+        x = self.lab_layer2(x)
+        x = self.lab_layer3(x)
+        x = self.lab_layer4(x)
+        x = self.lab_layer5(x)
+        x = self.lab_layer6(x)
+        x = self.lab_layer7(x)
+        x = self.lab_layer8(x)
+
+        x = x.view(x.size()[0], -1)
+        x = self.dropout1(x)
+        L = self.fc_lab(x)
+
+        img_lab, gradient_regulariser_lab = ImageProcessing.adjust_lab(
+            img_lab.squeeze(0), L[0, 0:48])
+        img_rgb = ImageProcessing.lab_to_rgb(img_lab.squeeze(0))
+        img_rgb = torch.clamp(img_rgb, 0, 1)
+        feat_rgb = torch.cat((feat, img_rgb.unsqueeze(0)), 1)
+
+        x = self.rgb_layer1(feat_rgb)
+        x = self.rgb_layer2(x)
+        x = self.rgb_layer3(x)
+        x = self.rgb_layer4(x)
+        x = self.rgb_layer5(x)
+        x = self.rgb_layer6(x)
+        x = self.rgb_layer7(x)
+        x = self.rgb_layer8(x)
+        x = x.view(x.size()[0], -1)
+        x = self.dropout2(x)
+        R = self.fc_rgb(x)
+
+        img_rgb, gradient_regulariser_rgb = ImageProcessing.adjust_rgb(
+            img_rgb.squeeze(0), R[0, 0:48])
+        img_rgb = torch.clamp(img_rgb, 0, 1)
+
+        img_hsv = ImageProcessing.rgb_to_hsv(img_rgb.squeeze(0))
+        img_hsv = torch.clamp(img_hsv, 0, 1)
+        feat_hsv = torch.cat((feat, img_hsv.unsqueeze(0)), 1)
+
+        x = self.hsv_layer1(feat_hsv)
+        del feat_hsv
+        x = self.hsv_layer2(x)
+        x = self.hsv_layer3(x)
+        x = self.hsv_layer4(x)
+        x = self.hsv_layer5(x)
+        x = self.hsv_layer6(x)
+        x = self.hsv_layer7(x)
+        x = self.hsv_layer8(x)
+        x = x.view(x.size()[0], -1)
+        x = self.dropout3(x)
+        H = self.fc_hsv(x)
+
+        img_hsv, gradient_regulariser_hsv = ImageProcessing.adjust_hsv(
+            img_hsv, H[0, 0:64])
+        img_hsv = torch.clamp(img_hsv, 0, 1)
+
+        img_residual = torch.clamp(ImageProcessing.hsv_to_rgb(
+           img_hsv.squeeze(0)), 0, 1)
+
+        img = torch.clamp(img + img_residual.unsqueeze(0), 0, 1)
+
+        cn_x = torch.clamp(cn_x, 0, 1)
+        cn_lab = torch.clamp(ImageProcessing.rgb_to_lab(
+            cn_x.squeeze(0)), 0, 1)
+        cn_lab, gradient_regulariser_lab = ImageProcessing.adjust_lab(
+            cn_lab.squeeze(0), L[0, 0:48])
+        cn_rgb = ImageProcessing.lab_to_rgb(cn_lab.squeeze(0))
+        cn_rgb = torch.clamp(cn_rgb, 0, 1)
+        cn_rgb, gradient_regulariser_rgb = ImageProcessing.adjust_rgb(
+            cn_rgb.squeeze(0), R[0, 0:48])
+        cn_rgb = torch.clamp(cn_rgb, 0, 1)
+        cn_hsv = ImageProcessing.rgb_to_hsv(cn_rgb.squeeze(0))
+        cn_hsv = torch.clamp(cn_hsv, 0, 1)
+
+        cn_hsv, gradient_regulariser_hsv = ImageProcessing.adjust_hsv(
+            cn_hsv, H[0, 0:64])
+        cn_hsv = torch.clamp(cn_hsv, 0, 1)
+
+        cn_residual = torch.clamp(ImageProcessing.hsv_to_rgb(
+            cn_hsv.squeeze(0)), 0, 1)
+
+        gradient_regulariser = gradient_regulariser_rgb + \
+            gradient_regulariser_lab+gradient_regulariser_hsv
+
+        cn = torch.clamp(cn_x + cn_residual.unsqueeze(0), 0, 1)
+
+        return cn, gradient_regulariser
 
 
 class Block(nn.Module):
@@ -518,7 +697,7 @@ class GlobalPoolingBlock(Block, nn.Module):
         out = self.avg_pool(x)
         return out
 
-class CURLNet_original(nn.Module):
+class CURLNet_old(nn.Module):
 
     def __init__(self):
         """Initialisation function
@@ -527,7 +706,7 @@ class CURLNet_original(nn.Module):
         :rtype: N/A
 
         """
-        super(CURLNet_original, self).__init__()
+        super(CURLNet_old, self).__init__()
         self.tednet = rgb_ted.TEDModel()
         self.curllayer = CURLLayer()
 
@@ -539,10 +718,9 @@ class CURLNet_original(nn.Module):
         :rtype: numpy ndarray
 
         """
-        feat = self.tednet(img)
-        img, gradient_regulariser = self.curllayer(feat)
-        return img, gradient_regulariser
-
+        feat = self.tednet.ted(img)
+        # img, gradient_regulariser = self.curllayer(feat)
+        return feat[:, 0:3, :, :], 0
 
 class CURLNet(nn.Module):
 
@@ -554,12 +732,44 @@ class CURLNet(nn.Module):
 
         """
         super(CURLNet, self).__init__()
-        self.tednet = rgb_ted.TEDModel().ted
+        self.tednet = rgb_ted.TEDModel()
+        checkpoint = torch.load(
+            "/home/dserrano/Workspace/CURL/pretrained_models/adobe_dpe/curl_validpsnr_23.073045286204017_validloss_0.0701291635632515_testpsnr_23.584083321292365_testloss_0.061363041400909424_epoch_510_model.pt")
+        model_state_dict = checkpoint['model_state_dict']
+        model_state_dict_ted = {k: v for k, v in model_state_dict.items() if not k.startswith('curl')}
+        model_state_dict_ted = {k.replace('tednet.', ''): v for k, v in model_state_dict_ted.items()}
 
-        self.curllayer = nn.Sequential(
-            rgb_ted.TEDModel().final_conv,
-            rgb_ted.TEDModel().refpad,
-            CURLLayer())
+        self.tednet.load_state_dict(model_state_dict_ted)
+        self.tednet.eval()
+
+        self.color_naming = ColorNaming()
+
+        model_state_dict_curl = {k: v for k, v in model_state_dict.items() if not k.startswith('ted')}
+        model_state_dict_curl = {k.replace('curllayer.', ''): v for k, v in model_state_dict_curl.items()}
+
+        self.curl_orange = CURLLayer()
+        self.curl_orange.load_state_dict(model_state_dict_curl)
+        self.curl_orange = self.curl_orange.cuda()
+
+        self.curl_achromatic = CURLLayer()
+        self.curl_achromatic.load_state_dict(model_state_dict_curl)
+        self.curl_achromatic = self.curl_achromatic.cuda()
+
+        self.curl_pink = CURLLayer()
+        self.curl_pink.load_state_dict(model_state_dict_curl)
+        self.curl_pink = self.curl_pink.cuda()
+
+        self.curl_red = CURLLayer()
+        self.curl_red.load_state_dict(model_state_dict_curl)
+        self.curl_red = self.curl_red.cuda()
+
+        self.curl_green = CURLLayer()
+        self.curl_green.load_state_dict(model_state_dict_curl)
+        self.curl_green = self.curl_green.cuda()
+
+        self.curl_blue = CURLLayer()
+        self.curl_blue.load_state_dict(model_state_dict_curl)
+        self.curl_blue = self.curl_blue.cuda()
 
     def forward(self, img):
         """Neural network forward function
@@ -569,49 +779,182 @@ class CURLNet(nn.Module):
         :rtype: numpy ndarray
 
         """
-        feat = self.tednet(img)
+        x = self.tednet(img)
+        x.contiguous()
+        img = x[:, 0:3, :, :].detach().cpu()
+        feat = x[:, 3:64, :, :]
+        img = torch.clamp(img, 0, 1)
+        x_color, x_probs = self.color_naming(img)
 
+        x_color = x_color.cuda()
+        x_probs = x_probs.cuda()
+
+        x_0, gradient_0 = self.curl_orange(torch.cat((feat, x_color[0]), dim=1))
+        x_1, gradient_1 = self.curl_achromatic(torch.cat((feat, x_color[1]), dim=1))
+        x_2, gradient_2 = self.curl_pink(torch.cat((feat, x_color[2]), dim=1))
+        x_3, gradient_3 = self.curl_red(torch.cat((feat, x_color[3]), dim=1))
+        x_4, gradient_4 = self.curl_green(torch.cat((feat, x_color[4]), dim=1))
+        x_5, gradient_5 = self.curl_blue(torch.cat((feat, x_color[5]), dim=1))
+
+        x = torch.stack([x_0, x_1, x_2, x_3, x_4, x_5], dim=0)
+        x = torch.sum(x*x_probs.unsqueeze(2), dim=0)
+
+        return x, gradient_0 + gradient_1 + gradient_2 + gradient_3 + gradient_4 + gradient_5
+
+class CURLNet_new(nn.Module):
+
+    def __init__(self):
+        """Initialisation function
+
+        :returns: initialises parameters of the neural networ
+        :rtype: N/A
+
+        """
+        super(CURLNet_new, self).__init__()
+        self.tednet = rgb_ted.TEDModel()
+        checkpoint = torch.load("/home/dserrano/Workspace/CURL/pretrained_models/adobe_dpe/curl_validpsnr_23.073045286204017_validloss_0.0701291635632515_testpsnr_23.584083321292365_testloss_0.061363041400909424_epoch_510_model.pt")
+        model_state_dict = checkpoint['model_state_dict']
+        model_state_dict_ted = {k: v for k, v in model_state_dict.items() if not k.startswith('curl')}
+        model_state_dict_ted = {k.replace('tednet.', ''): v for k, v in model_state_dict_ted.items()}
+
+        self.tednet.load_state_dict(model_state_dict_ted)
+        self.tednet.eval()
+
+        self.color_naming = ColorNaming()
+
+        model_state_dict_curl = {k: v for k, v in model_state_dict.items() if not k.startswith('ted')}
+        model_state_dict_curl = {k.replace('curllayer.', ''): v for k, v in model_state_dict_curl.items()}
+
+        self.curl_orange = CURLLayer()
+        self.curl_orange.load_state_dict(model_state_dict_curl)
+        self.curl_orange = self.curl_orange.cuda()
+
+        self.curl_achromatic = CURLLayer()
+        self.curl_achromatic.load_state_dict(model_state_dict_curl)
+        self.curl_achromatic = self.curl_achromatic.cuda()
+
+        self.curl_pink = CURLLayer()
+        self.curl_pink.load_state_dict(model_state_dict_curl)
+        self.curl_pink = self.curl_pink.cuda()
+
+        self.curl_red = CURLLayer()
+        self.curl_red.load_state_dict(model_state_dict_curl)
+        self.curl_red = self.curl_red.cuda()
+
+        self.curl_green = CURLLayer()
+        self.curl_green.load_state_dict(model_state_dict_curl)
+        self.curl_green = self.curl_green.cuda()
+
+        self.curl_blue = CURLLayer()
+        self.curl_blue.load_state_dict(model_state_dict_curl)
+        self.curl_blue = self.curl_blue.cuda()
+
+    def forward(self, img):
+        """Neural network forward function
+
+        :param img: forward the data img through the network
+        :returns: residual image
+        :rtype: numpy ndarray
+
+        """
+        x = self.tednet(img)
+        x.contiguous()
+        img = x[:, 0:3, :, :].detach().cpu()
+
+        feat = x[:, 3:64, :, :]
+        img = torch.clamp(img, 0, 1)
+        x_color, x_probs = self.color_naming(img)
+
+        x_color = x_color.cuda()
+        x_probs = x_probs.cuda()
+
+        x_0, gradient_0 = self.curl_orange(x)
+        x_1, gradient_1 = self.curl_achromatic(x)
+        x_2, gradient_2 = self.curl_pink(x)
+        x_3, gradient_3 = self.curl_red(x)
+        x_4, gradient_4 = self.curl_green(x)
+        x_5, gradient_5 = self.curl_blue(x)
+
+        x = torch.stack([x_0, x_1, x_2, x_3, x_4, x_5], dim=0)
+        x = torch.sum(x*x_probs.unsqueeze(2), dim=0)
+
+        # import cv2
+        # cv2.imwrite("/home/dserrano/Desktop/cn_curl.jpg", x.detach().cpu().squeeze().permute(1,2,0).numpy()[...,::-1]*255)
+        #
+        # import matplotlib.pyplot as plt
+        # plt.subplot(261)
+        # plt.imshow(x_0.detach().cpu().squeeze().permute(1, 2, 0).numpy())
+        # plt.subplot(262)
+        # plt.imshow(x_1.detach().cpu().squeeze().permute(1, 2, 0).numpy())
+        # plt.subplot(263)
+        # plt.imshow(x_2.detach().cpu().squeeze().permute(1, 2, 0).numpy())
+        # plt.subplot(264)
+        # plt.imshow(x_3.detach().cpu().squeeze().permute(1, 2, 0).numpy())
+        # plt.subplot(265)
+        # plt.imshow(x_4.detach().cpu().squeeze().permute(1, 2, 0).numpy())
+        # plt.subplot(266)
+        # plt.imshow(x_5.detach().cpu().squeeze().permute(1, 2, 0).numpy())
+        # plt.subplot(267)
+        # plt.imshow(x_probs.detach().cpu()[0].squeeze().numpy())
+        # plt.subplot(268)
+        # plt.imshow(x_probs.detach().cpu()[1].squeeze().numpy())
+        # plt.subplot(269)
+        # plt.imshow(x_probs.detach().cpu()[2].squeeze().numpy())
+        # plt.subplot(2,6,10)
+        # plt.imshow(x_probs.detach().cpu()[3].squeeze().numpy())
+        # plt.subplot(2,6,11)
+        # plt.imshow(x_probs.detach().cpu()[4].squeeze().numpy())
+        # plt.subplot(2,6,12)
+        # plt.imshow(x_probs.detach().cpu()[5].squeeze().numpy())
+        # plt.show()
+
+        # x = torch.stack([x_0, x_1, x_2, x_3, x_4, x_5], dim=0)
+        # x = torch.sum(x*x_probs.unsqueeze(2), dim=0)
+
+        #cv2.imwrite("/home/dserrano/Desktop/color_naming_curl.jpg", x.detach().cpu().squeeze().permute(1, 2, 0).numpy()[..., ::-1]*255)
+
+        return x, gradient_0 + gradient_1 + gradient_2 + gradient_3 + gradient_4 + gradient_5
         """Color Naming"""
-        from scipy.io import loadmat
-        from torchvision.transforms.functional import to_tensor
+        # from scipy.io import loadmat
+        # from torchvision.transforms.functional import to_tensor
+        #
+        # MATPATH = "/home/david/Downloads/wetransfer_imatges_2023-05-12_1337/Color_naming/ColorNaming/w2c.mat"
+        # COLOR_CATEGORIES = [[2, 5, 10], [0, 3, 9], [6, 7], [8], [4], [1]]
+        # THRESHOLD = 0.1
+        #
+        # mat = loadmat(MATPATH)['w2c']
+        # img = feat.squeeze(0).permute(1, 2, 0).detach().cpu().numpy()
+        # index_im = np.floor(img[..., 0].flatten() / 8).astype(int) + 32 * np.floor(img[..., 1].flatten() / 8).astype(
+        #     int) + 32 * 32 * np.floor(img[..., 2].flatten() / 8).astype(int)
+        # prob_maps = []
+        # for idx, w2cM in enumerate(mat.T):
+        #     map = w2cM[index_im].reshape(img.shape[:2])
+        #     prob_maps.append(map)
+        #
+        # mask_images = []
+        # prob_images = []
+        # for idx, category in enumerate(COLOR_CATEGORIES):
+        #     mask = np.expand_dims(
+        #         analogic_or([np.greater_equal(prob_maps[i], THRESHOLD).astype(int) for i in category]).astype(int),
+        #         axis=2)
+        #     prob = np.sum([prob_maps[i] for i in category], axis=0)
+        #
+        #     mask_images.append(mask)
+        #     prob_images.append(prob)
+        #
+        # curl_images = []
+        # for idx, (mask, map) in enumerate(zip(mask_images, prob_images)):
+        #     input_tensor = feat * torch.from_numpy(mask).float().permute(2, 0, 1).unsqueeze(0).cuda()
+        #     net_output_img_example, _ = self.curllayer(input_tensor)
+        #
+        #     map = torch.from_numpy(map).unsqueeze(0)
+        #     net_output_img_example = net_output_img_example.squeeze(0) * map.cuda()
+        #
+        #     curl_images.append(net_output_img_example)
+        #
+        # reconstructed_img = torch.sum(torch.stack(curl_images), dim=0)
 
-        MATPATH = "/home/david/Downloads/wetransfer_imatges_2023-05-12_1337/Color_naming/ColorNaming/w2c.mat"
-        COLOR_CATEGORIES = [[2, 5, 10], [0, 3, 9], [6, 7], [8], [4], [1]]
-        THRESHOLD = 0.1
-
-        mat = loadmat(MATPATH)['w2c']
-        img = feat.squeeze(0).permute(1, 2, 0).detach().cpu().numpy()
-        index_im = np.floor(img[..., 0].flatten() / 8).astype(int) + 32 * np.floor(img[..., 1].flatten() / 8).astype(
-            int) + 32 * 32 * np.floor(img[..., 2].flatten() / 8).astype(int)
-        prob_maps = []
-        for idx, w2cM in enumerate(mat.T):
-            map = w2cM[index_im].reshape(img.shape[:2])
-            prob_maps.append(map)
-
-        mask_images = []
-        prob_images = []
-        for idx, category in enumerate(COLOR_CATEGORIES):
-            mask = np.expand_dims(
-                analogic_or([np.greater_equal(prob_maps[i], THRESHOLD).astype(int) for i in category]).astype(int),
-                axis=2)
-            prob = np.sum([prob_maps[i] for i in category], axis=0)
-
-            mask_images.append(mask)
-            prob_images.append(prob)
-
-        curl_images = []
-        for idx, (mask, map) in enumerate(zip(mask_images, prob_images)):
-            input_tensor = feat * torch.from_numpy(mask).float().permute(2, 0, 1).unsqueeze(0).cuda()
-            net_output_img_example, _ = self.curllayer(input_tensor)
-
-            map = torch.from_numpy(map).unsqueeze(0)
-            net_output_img_example = net_output_img_example.squeeze(0) * map.cuda()
-
-            curl_images.append(net_output_img_example)
-
-        reconstructed_img = torch.sum(torch.stack(curl_images), dim=0)
-
-        return reconstructed_img.unsqueeze(0), _
+        return x, gradient_0 + gradient_1
 
         #img, gradient_regulariser = self.curllayer(feat)
         #return img, gradient_regulariser
@@ -620,3 +963,86 @@ from functools import reduce
 def analogic_or(masks):
     return reduce(lambda x, y: x | y, masks)
 
+class CurveNet(nn.Module):
+    def __init__(self, in_chan=3, out_chan=64, ker_sizes=3, drop_rate=0.2):
+        super(CurveNet, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels=in_chan, out_channels=int(out_chan/2), kernel_size=ker_sizes, padding=1)
+        self.conv2 = nn.Conv2d(in_channels=int(out_chan/2), out_channels=out_chan, kernel_size=ker_sizes, padding=1)
+        self.conv3 = nn.Conv2d(in_channels=out_chan, out_channels=out_chan, kernel_size=ker_sizes, padding=1)
+
+        self.lrelu = nn.LeakyReLU()
+        self.maxpool = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.adap_avgpool = nn.AdaptiveAvgPool2d(1)
+        self.dropout = nn.Dropout(drop_rate)
+        self.fc = nn.Linear(out_chan, 48)
+
+        self.curve = nn.Sequential(
+            nn.Conv2d(in_channels=in_chan, out_channels=int(out_chan/2), kernel_size=ker_sizes, padding=1),
+            nn.LeakyReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(in_channels=int(out_chan/2), out_channels=out_chan, kernel_size=ker_sizes, padding=1),
+            nn.LeakyReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(in_channels=out_chan, out_channels=out_chan, kernel_size=ker_sizes, padding=1),
+            nn.LeakyReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.AdaptiveAvgPool2d(1),
+            nn.Dropout(drop_rate),
+            nn.Linear(out_chan, 48))
+
+    def forward(self, x):
+        x = self.lrelu(self.conv1(x))
+        x = self.maxpool(x)
+        x = self.lrelu(self.conv2(x))
+        x = self.maxpool(x)
+        x = self.lrelu(self.conv3(x))
+        x = self.adap_avgpool(x)
+        x = x.view(x.size(0), -1)
+        x = self.dropout(x)
+        x = self.fc(x)
+        return x
+
+class ColorNaming():
+    def __init__(self, matrix_path="/home/dserrano/Downloads/w2c.mat", threshold=0.1, mode='6'):
+        self.matrix = to_tensor(loadmat(matrix_path)['w2c'])
+        self.threshold = threshold
+
+        if mode == '6':
+            self.color_categories = [[2,5,10], [0,3,9], [6,7], [8], [4], [1]]
+
+    def __call__(self, input_tensor, mode='6'):
+        """Converts an RGB image to a color naming image.
+
+        Args:
+        input_tensor: batch of RGB images (B x 3 x H x W)
+
+        Returns:
+            np.array: Color naming image.
+        """
+        # Reconvert image to [0-255] range
+        img = (input_tensor * 255).int()
+
+        index_tensor = torch.floor(
+            img[:, 0, ...].view(img.shape[0], -1) / 8).long() + 32 * torch.floor(
+            img[:, 1, ...].view(img.shape[0], -1) / 8).long() + 32 * 32 * torch.floor(
+            img[:, 2, ...].view(img.shape[0], -1) / 8).long()
+
+        prob_maps = []
+        for w2cM in self.matrix.permute(*torch.arange(self.matrix.ndim-1, -1, -1)):
+            out = w2cM[index_tensor].view(input_tensor.size(0), input_tensor.size(2), input_tensor.size(3))
+            prob_maps.append(out)
+        prob_maps = torch.stack(prob_maps, dim=0)
+
+        category_probs = []  # prob maps for each color category. [0, 1]
+        category_images = [] # binary masks for each color category. {0, 1}
+        for category in self.color_categories:
+            cat_tensors = torch.index_select(prob_maps, 0, torch.tensor(category)).sum(dim=0)
+            category_probs.append(cat_tensors)
+
+            cat_tensors = input_tensor * torch.where(cat_tensors >= self.threshold, torch.tensor(1), torch.tensor(0)).unsqueeze(1)
+            category_images.append(cat_tensors)
+
+        category_images = torch.stack(category_images, dim=0)
+        category_probs = torch.stack(category_probs, dim=0)
+
+        return category_images, category_probs

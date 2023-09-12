@@ -33,6 +33,8 @@ import os
 import metric
 import model
 import sys
+from tqdm import tqdm
+import wandb
 from torch.utils.tensorboard import SummaryWriter
 np.set_printoptions(threshold=sys.maxsize)
 
@@ -107,7 +109,7 @@ def main():
                                     is_inference=True)
 
         inference_data_loader = torch.utils.data.DataLoader(inference_dataset, batch_size=BATCH_SIZE, shuffle=False,
-                                                            num_workers=10)
+                                                            num_workers=0)
 
         '''
         Performs inference on all the images in inference_img_dirpath
@@ -115,9 +117,9 @@ def main():
         logging.info(
             "Performing inference with images in directory: " + inference_img_dirpath)
 
-        net = model.CURLNet()
-        checkpoint = torch.load(checkpoint_filepath, map_location='cuda')
-        net.load_state_dict(checkpoint['model_state_dict'])
+        net = model.CURLNet_new()
+        # checkpoint = torch.load(checkpoint_filepath, map_location='cuda')
+        # net.load_state_dict(checkpoint['model_state_dict'])
         net.eval()
 
         criterion = model.CURLLoss()
@@ -147,14 +149,14 @@ def main():
         testing_dataset = Dataset(data_dict=testing_data_dict, normaliser=1,is_valid=True)
 
         training_data_loader = torch.utils.data.DataLoader(training_dataset, batch_size=BATCH_SIZE, shuffle=True,
-                                                       num_workers=6)
+                                                       num_workers=0)
         testing_data_loader = torch.utils.data.DataLoader(testing_dataset, batch_size=BATCH_SIZE, shuffle=False,
-                                                      num_workers=6)
+                                                      num_workers=0)
         validation_data_loader = torch.utils.data.DataLoader(validation_dataset, batch_size=BATCH_SIZE,
                                                          shuffle=False,
-                                                         num_workers=6)
+                                                         num_workers=0)
    
-        net = model.CURLNet()
+        net = model.CURLNet_new()
         net.cuda()
 
         logging.info('######### Network created #########')
@@ -207,40 +209,47 @@ def main():
         ssim_avg = 0.0
         total_examples = 0
 
+        wandb.init(project="CURL")
+
         for epoch in range(start_epoch,num_epoch):
 
             # train loss
             examples = 0.0
             running_loss = 0.0
-            
-            for batch_num, data in enumerate(training_data_loader, 0):
 
-                input_img_batch, gt_img_batch, category = Variable(data['input_img'],
-                                                                       requires_grad=False).cuda(), Variable(data['output_img'],
-                                                                                                             requires_grad=False).cuda(), data[
-                    'name']
+            with tqdm(training_data_loader, desc=f"EPOCH {epoch}") as pbar:
+                for batch_num, data in enumerate(pbar, 0):
 
-                start_time = time.time()
-                net_img_batch, gradient_regulariser = net(
-                    input_img_batch)
+                    input_img_batch, gt_img_batch, category = Variable(data['input_img'],
+                                                                           requires_grad=False).cuda(), Variable(data['output_img'],
+                                                                                                                 requires_grad=False).cuda(), data[
+                        'name']
 
-                net_img_batch = torch.clamp(
-                    net_img_batch, 0.0, 1.0)
+                    start_time = time.time()
+                    net_img_batch, gradient_regulariser = net(
+                        input_img_batch)
 
-                elapsed_time = time.time() - start_time
+                    net_img_batch = torch.clamp(
+                        net_img_batch, 0.0, 1.0)
 
-                loss = criterion(net_img_batch,
-                                 gt_img_batch, gradient_regulariser)
+                    elapsed_time = time.time() - start_time
 
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
+                    loss = criterion(net_img_batch,
+                                     gt_img_batch, gradient_regulariser)
 
-                running_loss += loss.data[0]
-                examples += BATCH_SIZE
-                total_examples+=BATCH_SIZE
+                    optimizer.zero_grad()
+                    loss.backward()
+                    optimizer.step()
 
-                writer.add_scalar('Loss/train', loss.data[0], total_examples)
+                    running_loss += loss.data[0]
+                    examples += BATCH_SIZE
+                    total_examples+=BATCH_SIZE
+
+                    writer.add_scalar('Loss/train', loss.data[0], total_examples)
+                    pbar.set_postfix(loss=running_loss/examples)
+
+                    if (batch_num % 250 == 0 and batch_num != 0) or batch_num == len(pbar):
+                        wandb.log({"train/loss": running_loss/examples})
 
             logging.info('[%d] train loss: %.15f' %
                          (epoch + 1, running_loss / examples))
@@ -292,6 +301,9 @@ def main():
                     net, epoch)
                 test_loss, test_psnr, test_ssim = testing_evaluator.evaluate(
                     net, epoch)
+
+                wandb.log({"valid/loss": valid_loss, "valid/psnr": valid_psnr, "valid/ssim": valid_ssim,
+                           "test/loss": test_loss, "test/psnr": test_psnr, "test/ssim": test_ssim})
 
                 # update best validation set psnr
                 if valid_psnr > best_valid_psnr:

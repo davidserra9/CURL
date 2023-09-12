@@ -11,7 +11,7 @@ Authors: Sean Moran (sean.j.moran@gmail.com), 2020
 
 '''
 import matplotlib
-matplotlib.use('agg')
+#matplotlib.use('agg')
 import numpy as np
 import sys
 import torch
