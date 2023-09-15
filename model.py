@@ -339,39 +339,39 @@ class CURLLayer(nn.Module):
         feat = x[:, 3:64, :, :]
         img = x[:, 0:3, :, :]
 
-        torch.cuda.empty_cache()
-        shape = x.shape
+        # torch.cuda.empty_cache()
+        # shape = x.shape
+        #
+        # img_clamped = torch.clamp(img, 0, 1)
+        # img_lab = torch.clamp(ImageProcessing.rgb_to_lab(
+        #     img_clamped.squeeze(0)), 0, 1)
+        #
+        # feat_lab = torch.cat((feat, img_lab.unsqueeze(0)), 1)
+        #
+        # x = self.lab_layer1(feat_lab)
+        # # TODO: despres de cada capa, mascara per no propagar
+        # del feat_lab
+        # x = self.lab_layer2(x)
+        # x = self.lab_layer3(x)
+        # x = self.lab_layer4(x)
+        # x = self.lab_layer5(x)
+        # x = self.lab_layer6(x)
+        # x = self.lab_layer7(x)
+        # x = self.lab_layer8(x)
+        #
+        # x = x.view(x.size()[0], -1)
+        # x = self.dropout1(x)
+        # # TODO: mascara i components a 0
+        # L = self.fc_lab(x)
 
-        img_clamped = torch.clamp(img, 0, 1)
-        img_lab = torch.clamp(ImageProcessing.rgb_to_lab(
-            img_clamped.squeeze(0)), 0, 1)
+        # img_lab, gradient_regulariser_lab = ImageProcessing.adjust_lab(
+        #     img_lab.squeeze(0), L[0, 0:48])
+        # img_rgb = ImageProcessing.lab_to_rgb(img_lab.squeeze(0))
+        # img_rgb = torch.clamp(img_rgb, 0, 1)
+        # # TODO: mirar img_rgb del model entrenat
+        # feat_rgb = torch.cat((feat, img_rgb.unsqueeze(0)), 1)
 
-        feat_lab = torch.cat((feat, img_lab.unsqueeze(0)), 1)
-
-        x = self.lab_layer1(feat_lab)
-        # TODO: despres de cada capa, mascara per no propagar
-        del feat_lab
-        x = self.lab_layer2(x)
-        x = self.lab_layer3(x)
-        x = self.lab_layer4(x)
-        x = self.lab_layer5(x)
-        x = self.lab_layer6(x)
-        x = self.lab_layer7(x)
-        x = self.lab_layer8(x)
-
-        x = x.view(x.size()[0], -1)
-        x = self.dropout1(x)
-        # TODO: mascara i components a 0
-        L = self.fc_lab(x)
-
-        img_lab, gradient_regulariser_lab = ImageProcessing.adjust_lab(
-            img_lab.squeeze(0), L[0, 0:48])
-        img_rgb = ImageProcessing.lab_to_rgb(img_lab.squeeze(0))
-        img_rgb = torch.clamp(img_rgb, 0, 1)
-        # TODO: mirar img_rgb del model entrenat
-        feat_rgb = torch.cat((feat, img_rgb.unsqueeze(0)), 1)
-
-        x = self.rgb_layer1(feat_rgb)
+        x = self.rgb_layer1(x)
         x = self.rgb_layer2(x)
         x = self.rgb_layer3(x)
         x = self.rgb_layer4(x)
@@ -384,37 +384,36 @@ class CURLLayer(nn.Module):
         R = self.fc_rgb(x)
 
         img_rgb, gradient_regulariser_rgb = ImageProcessing.adjust_rgb(
-            img_rgb.squeeze(0), R[0, 0:48])
+            img.squeeze(0), R[0, 0:48])
         img_rgb = torch.clamp(img_rgb, 0, 1)
 
-        img_hsv = ImageProcessing.rgb_to_hsv(img_rgb.squeeze(0))
-        img_hsv = torch.clamp(img_hsv, 0, 1)
-        feat_hsv = torch.cat((feat, img_hsv.unsqueeze(0)), 1)
+        # img_hsv = ImageProcessing.rgb_to_hsv(img_rgb.squeeze(0))
+        # img_hsv = torch.clamp(img_hsv, 0, 1)
+        # feat_hsv = torch.cat((feat, img_hsv.unsqueeze(0)), 1)
+        #
+        # x = self.hsv_layer1(feat_hsv)
+        # del feat_hsv
+        # x = self.hsv_layer2(x)
+        # x = self.hsv_layer3(x)
+        # x = self.hsv_layer4(x)
+        # x = self.hsv_layer5(x)
+        # x = self.hsv_layer6(x)
+        # x = self.hsv_layer7(x)
+        # x = self.hsv_layer8(x)
+        # x = x.view(x.size()[0], -1)
+        # x = self.dropout3(x)
+        # H = self.fc_hsv(x)
+        #
+        # img_hsv, gradient_regulariser_hsv = ImageProcessing.adjust_hsv(
+        #     img_hsv, H[0, 0:64])
+        # img_hsv = torch.clamp(img_hsv, 0, 1)
+        #
+        # img_residual = torch.clamp(ImageProcessing.hsv_to_rgb(
+        #    img_hsv.squeeze(0)), 0, 1)
 
-        x = self.hsv_layer1(feat_hsv)
-        del feat_hsv
-        x = self.hsv_layer2(x)
-        x = self.hsv_layer3(x)
-        x = self.hsv_layer4(x)
-        x = self.hsv_layer5(x)
-        x = self.hsv_layer6(x)
-        x = self.hsv_layer7(x)
-        x = self.hsv_layer8(x)
-        x = x.view(x.size()[0], -1)
-        x = self.dropout3(x)
-        H = self.fc_hsv(x)
+        img = torch.clamp(img + img_rgb.unsqueeze(0), 0, 1)
 
-        img_hsv, gradient_regulariser_hsv = ImageProcessing.adjust_hsv(
-            img_hsv, H[0, 0:64])
-        img_hsv = torch.clamp(img_hsv, 0, 1)
-
-        img_residual = torch.clamp(ImageProcessing.hsv_to_rgb(
-           img_hsv.squeeze(0)), 0, 1)
-
-        img = torch.clamp(img + img_residual.unsqueeze(0), 0, 1)
-
-        gradient_regulariser = gradient_regulariser_rgb + \
-            gradient_regulariser_lab+gradient_regulariser_hsv
+        gradient_regulariser = gradient_regulariser_rgb
 
         return img, gradient_regulariser
 
@@ -718,9 +717,9 @@ class CURLNet_old(nn.Module):
         :rtype: numpy ndarray
 
         """
-        feat = self.tednet.ted(img)
-        # img, gradient_regulariser = self.curllayer(feat)
-        return feat[:, 0:3, :, :], 0
+        feat = self.tednet(img)
+        img, gradient_regulariser = self.curllayer(feat)
+        return img, gradient_regulariser
 
 class CURLNet(nn.Module):
 
