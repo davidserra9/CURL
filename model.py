@@ -297,9 +297,12 @@ class CURLLayer(nn.Module):
         self.lab_layer6 = MaxPoolBlock()
         self.lab_layer7 = ConvBlock(64, 64)
         self.lab_layer8 = GlobalPoolingBlock(2)
-        self.dropout1 = nn.Dropout(0.5)
 
         self.fc_lab = torch.nn.Linear(64, 48)
+
+        self.dropout1 = nn.Dropout(0.5)
+        self.dropout2 = nn.Dropout(0.5)
+        self.dropout3 = nn.Dropout(0.5)
 
         self.rgb_layer1 = ConvBlock(64, 64)
         self.rgb_layer2 = MaxPoolBlock()
@@ -309,7 +312,6 @@ class CURLLayer(nn.Module):
         self.rgb_layer6 = MaxPoolBlock()
         self.rgb_layer7 = ConvBlock(64, 64)
         self.rgb_layer8 = GlobalPoolingBlock(2)
-        self.dropout2 = nn.Dropout(0.5)
 
         self.fc_rgb = torch.nn.Linear(64, 48)
 
@@ -321,7 +323,6 @@ class CURLLayer(nn.Module):
         self.hsv_layer6 = MaxPoolBlock()
         self.hsv_layer7 = ConvBlock(64, 64)
         self.hsv_layer8 = GlobalPoolingBlock(2)
-        self.dropout3 = nn.Dropout(0.5)
 
         self.fc_hsv = torch.nn.Linear(64, 64)
 
@@ -346,30 +347,30 @@ class CURLLayer(nn.Module):
         shape = x.shape
 
         img_clamped = torch.clamp(img, 0, 1)
-        # img_lab = torch.clamp(ImageProcessing.rgb_to_lab(
-        #     img_clamped.squeeze(0)), 0, 1)
-        #
-        # feat_lab = torch.cat((feat, img_lab.unsqueeze(0)), 1)
-        #
-        # x = self.lab_layer1(feat_lab)
-        # del feat_lab
-        # x = self.lab_layer2(x)
-        # x = self.lab_layer3(x)
-        # x = self.lab_layer4(x)
-        # x = self.lab_layer5(x)
-        # x = self.lab_layer6(x)
-        # x = self.lab_layer7(x)
-        # x = self.lab_layer8(x)
-        # x = x.view(x.size()[0], -1)
-        # x = self.dropout1(x)
-        # L = self.fc_lab(x)
+        img_lab = torch.clamp(ImageProcessing.rgb_to_lab(
+            img_clamped.squeeze(0)), 0, 1)
 
-        # img_lab, gradient_regulariser_lab = ImageProcessing.adjust_lab(
-        #     img_lab.squeeze(0), L[0, 0:48])
-        # img_rgb = ImageProcessing.lab_to_rgb(img_lab.squeeze(0))
-        # img_rgb = torch.clamp(img_rgb, 0, 1)
+        feat_lab = torch.cat((feat, img_lab.unsqueeze(0)), 1)
 
-        feat_rgb = torch.cat((feat, img_clamped), 1)
+        x = self.lab_layer1(feat_lab)
+        del feat_lab
+        x = self.lab_layer2(x)
+        x = self.lab_layer3(x)
+        x = self.lab_layer4(x)
+        x = self.lab_layer5(x)
+        x = self.lab_layer6(x)
+        x = self.lab_layer7(x)
+        x = self.lab_layer8(x)
+        x = x.view(x.size()[0], -1)
+        x = self.dropout1(x)
+        L = self.fc_lab(x)
+
+        img_lab, gradient_regulariser_lab = ImageProcessing.adjust_lab(
+            img_lab.squeeze(0), L[0, 0:48])
+        img_rgb = ImageProcessing.lab_to_rgb(img_lab.squeeze(0))
+        img_rgb = torch.clamp(img_rgb, 0, 1)
+
+        feat_rgb = torch.cat((feat, img_rgb.unsqueeze(0)), 1)
 
         x = self.rgb_layer1(feat_rgb)
         x = self.rgb_layer2(x)
@@ -384,38 +385,40 @@ class CURLLayer(nn.Module):
         R = self.fc_rgb(x)
 
         img_rgb, gradient_regulariser_rgb = ImageProcessing.adjust_rgb(
-            img_clamped.squeeze(0), R[0, 0:48])
+            img_rgb.squeeze(0), R[0, 0:48])
         img_rgb = torch.clamp(img_rgb, 0, 1)
 
-        # img_hsv = ImageProcessing.rgb_to_hsv(img_rgb.squeeze(0))
-        # img_hsv = torch.clamp(img_hsv, 0, 1)
-        # feat_hsv = torch.cat((feat, img_hsv.unsqueeze(0)), 1)
+        img_hsv = ImageProcessing.rgb_to_hsv(img_rgb.squeeze(0))
+        img_hsv = torch.clamp(img_hsv, 0, 1)
+        feat_hsv = torch.cat((feat, img_hsv.unsqueeze(0)), 1)
 
-        # x = self.hsv_layer1(feat_hsv)
-        # del feat_hsv
-        # x = self.hsv_layer2(x)
-        # x = self.hsv_layer3(x)
-        # x = self.hsv_layer4(x)
-        # x = self.hsv_layer5(x)
-        # x = self.hsv_layer6(x)
-        # x = self.hsv_layer7(x)
-        # x = self.hsv_layer8(x)
-        # x = x.view(x.size()[0], -1)
-        # x = self.dropout3(x)
-        # H = self.fc_hsv(x)
-        #
-        # img_hsv, gradient_regulariser_hsv = ImageProcessing.adjust_hsv(
-        #     img_hsv, H[0, 0:64])
-        # img_hsv = torch.clamp(img_hsv, 0, 1)
+        x = self.hsv_layer1(feat_hsv)
+        del feat_hsv
+        x = self.hsv_layer2(x)
+        x = self.hsv_layer3(x)
+        x = self.hsv_layer4(x)
+        x = self.hsv_layer5(x)
+        x = self.hsv_layer6(x)
+        x = self.hsv_layer7(x)
+        x = self.hsv_layer8(x)
+        x = x.view(x.size()[0], -1)
+        x = self.dropout3(x)
+        H = self.fc_hsv(x)
 
-        # img_residual = torch.clamp(ImageProcessing.hsv_to_rgb(
-        #    img_hsv.squeeze(0)), 0, 1)
+        img_hsv, gradient_regulariser_hsv = ImageProcessing.adjust_hsv(
+            img_hsv, H[0, 0:64])
+        img_hsv = torch.clamp(img_hsv, 0, 1)
 
-        img = torch.clamp(img + img_rgb.unsqueeze(0), 0, 1)
+        img_residual = torch.clamp(ImageProcessing.hsv_to_rgb(
+           img_hsv.squeeze(0)), 0, 1)
 
-        gradient_regulariser = gradient_regulariser_rgb
+        img = torch.clamp(img + img_residual.unsqueeze(0), 0, 1)
+
+        gradient_regulariser = gradient_regulariser_rgb + \
+            gradient_regulariser_lab+gradient_regulariser_hsv
 
         return img, gradient_regulariser
+
 
 class CURLLayer_new(nn.Module):
 
