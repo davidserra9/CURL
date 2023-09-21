@@ -35,6 +35,7 @@ import model
 import sys
 from tqdm import tqdm
 import wandb
+import pathlib
 from torch.utils.tensorboard import SummaryWriter
 np.set_printoptions(threshold=sys.maxsize)
 
@@ -44,8 +45,10 @@ def main():
 
     writer = SummaryWriter()
 
+    ROOT_PATH = str(pathlib.Path(__file__).parent.resolve())
+
     timestamp = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    log_dirpath = "./log_" + timestamp
+    log_dirpath = os.path.join(ROOT_PATH, "./log_" + timestamp)
     os.mkdir(log_dirpath)
 
     handlers = [logging.FileHandler(
@@ -79,12 +82,13 @@ def main():
 
     logging.info('######### Parameters #########')
     logging.info('Number of epochs: ' + str(num_epoch))
+    logging.info('Repository/Root path: ' + str(pathlib.Path(__file__).parent.resolve()))
     logging.info('Logging directory: ' + str(log_dirpath))
     logging.info('Dump validation accuracy every: ' + str(valid_every))
     logging.info('Training image directory: ' + str(training_img_dirpath))
     logging.info('##############################')
 
-    BATCH_SIZE=1  # *** WARNING: batch size of > 1 not supported in current version of code ***
+    BATCH_SIZE = 1  # *** WARNING: batch size of > 1 not supported in current version of code ***
 
     if (checkpoint_filepath is not None) and (inference_img_dirpath is not None):
 
@@ -102,7 +106,7 @@ def main():
         # inference_data_loader = Adobe5kDataLoader(data_dirpath=inference_img_dirpath,
         #                                           img_ids_filepath=inference_img_dirpath+"/images_inference.txt")
         inference_data_loader = Adobe5kDataLoader(data_dirpath=inference_img_dirpath,
-                                                  img_ids_filepath="adobe5k_dpe/images_test.txt")
+                                                  img_ids_filepath=os.path.join(ROOT_PATH, "adobe5k_dpe/images_test.txt"))
         inference_data_dict = inference_data_loader.load_data()
         inference_dataset = Dataset(data_dict=inference_data_dict,
                                     transform=transforms.Compose([transforms.ToTensor()]), normaliser=1,
@@ -118,8 +122,8 @@ def main():
             "Performing inference with images in directory: " + inference_img_dirpath)
 
         net = model.CURLNet_new()
-        # checkpoint = torch.load(checkpoint_filepath, map_location='cuda')
-        # net.load_state_dict(checkpoint['model_state_dict'])
+        checkpoint = torch.load(checkpoint_filepath, map_location='cuda')
+        net.load_state_dict(checkpoint['model_state_dict'])
         net.eval()
 
         criterion = model.CURLLoss()
@@ -133,18 +137,18 @@ def main():
         assert(BATCH_SIZE==1)
 
         training_data_loader = Adobe5kDataLoader(data_dirpath=training_img_dirpath,
-                                                 img_ids_filepath="adobe5k_dpe/images_train.txt")
+                                                 img_ids_filepath=os.path.join(ROOT_PATH, "adobe5k_dpe/images_train.txt"))
         training_data_dict = training_data_loader.load_data()
 
         training_dataset = Dataset(data_dict=training_data_dict, normaliser=1, is_valid=False)
 
         validation_data_loader = Adobe5kDataLoader(data_dirpath=training_img_dirpath,
-                                               img_ids_filepath="adobe5k_dpe/images_valid.txt")
+                                               img_ids_filepath=os.path.join(ROOT_PATH, "adobe5k_dpe/images_valid.txt"))
         validation_data_dict = validation_data_loader.load_data()
         validation_dataset = Dataset(data_dict=validation_data_dict, normaliser=1, is_valid=True)
 
         testing_data_loader = Adobe5kDataLoader(data_dirpath=training_img_dirpath,
-                                            img_ids_filepath="adobe5k_dpe/images_test.txt")
+                                            img_ids_filepath=os.path.join(ROOT_PATH, "adobe5k_dpe/images_test.txt"))
         testing_data_dict = testing_data_loader.load_data()
         testing_dataset = Dataset(data_dict=testing_data_dict, normaliser=1,is_valid=True)
 

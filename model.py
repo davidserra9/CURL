@@ -329,49 +329,47 @@ class CURLLayer(nn.Module):
         :param x: forward the data x through the network
         :returns: Tensor representing the predicted image
         :rtype: Tensor
-        W, H, 64
+
         """
 
         '''
         This function is where the magic happens :)
         '''
         x.contiguous()  # remove memory holes
+
         feat = x[:, 3:64, :, :]
         img = x[:, 0:3, :, :]
 
-        # torch.cuda.empty_cache()
-        # shape = x.shape
-        #
-        # img_clamped = torch.clamp(img, 0, 1)
-        # img_lab = torch.clamp(ImageProcessing.rgb_to_lab(
-        #     img_clamped.squeeze(0)), 0, 1)
-        #
-        # feat_lab = torch.cat((feat, img_lab.unsqueeze(0)), 1)
-        #
-        # x = self.lab_layer1(feat_lab)
-        # # TODO: despres de cada capa, mascara per no propagar
-        # del feat_lab
-        # x = self.lab_layer2(x)
-        # x = self.lab_layer3(x)
-        # x = self.lab_layer4(x)
-        # x = self.lab_layer5(x)
-        # x = self.lab_layer6(x)
-        # x = self.lab_layer7(x)
-        # x = self.lab_layer8(x)
-        #
-        # x = x.view(x.size()[0], -1)
-        # x = self.dropout1(x)
-        # # TODO: mascara i components a 0
-        # L = self.fc_lab(x)
+        torch.cuda.empty_cache()
+        shape = x.shape
 
-        # img_lab, gradient_regulariser_lab = ImageProcessing.adjust_lab(
-        #     img_lab.squeeze(0), L[0, 0:48])
-        # img_rgb = ImageProcessing.lab_to_rgb(img_lab.squeeze(0))
-        # img_rgb = torch.clamp(img_rgb, 0, 1)
-        # # TODO: mirar img_rgb del model entrenat
-        # feat_rgb = torch.cat((feat, img_rgb.unsqueeze(0)), 1)
+        img_clamped = torch.clamp(img, 0, 1)
+        img_lab = torch.clamp(ImageProcessing.rgb_to_lab(
+            img_clamped.squeeze(0)), 0, 1)
 
-        x = self.rgb_layer1(x)
+        feat_lab = torch.cat((feat, img_lab.unsqueeze(0)), 1)
+
+        x = self.lab_layer1(feat_lab)
+        del feat_lab
+        x = self.lab_layer2(x)
+        x = self.lab_layer3(x)
+        x = self.lab_layer4(x)
+        x = self.lab_layer5(x)
+        x = self.lab_layer6(x)
+        x = self.lab_layer7(x)
+        x = self.lab_layer8(x)
+        x = x.view(x.size()[0], -1)
+        x = self.dropout1(x)
+        L = self.fc_lab(x)
+
+        img_lab, gradient_regulariser_lab = ImageProcessing.adjust_lab(
+            img_lab.squeeze(0), L[0, 0:48])
+        img_rgb = ImageProcessing.lab_to_rgb(img_lab.squeeze(0))
+        img_rgb = torch.clamp(img_rgb, 0, 1)
+
+        feat_rgb = torch.cat((feat, img_rgb.unsqueeze(0)), 1)
+
+        x = self.rgb_layer1(feat_rgb)
         x = self.rgb_layer2(x)
         x = self.rgb_layer3(x)
         x = self.rgb_layer4(x)
@@ -384,36 +382,37 @@ class CURLLayer(nn.Module):
         R = self.fc_rgb(x)
 
         img_rgb, gradient_regulariser_rgb = ImageProcessing.adjust_rgb(
-            img.squeeze(0), R[0, 0:48])
+            img_rgb.squeeze(0), R[0, 0:48])
         img_rgb = torch.clamp(img_rgb, 0, 1)
 
-        # img_hsv = ImageProcessing.rgb_to_hsv(img_rgb.squeeze(0))
-        # img_hsv = torch.clamp(img_hsv, 0, 1)
-        # feat_hsv = torch.cat((feat, img_hsv.unsqueeze(0)), 1)
-        #
-        # x = self.hsv_layer1(feat_hsv)
-        # del feat_hsv
-        # x = self.hsv_layer2(x)
-        # x = self.hsv_layer3(x)
-        # x = self.hsv_layer4(x)
-        # x = self.hsv_layer5(x)
-        # x = self.hsv_layer6(x)
-        # x = self.hsv_layer7(x)
-        # x = self.hsv_layer8(x)
-        # x = x.view(x.size()[0], -1)
-        # x = self.dropout3(x)
-        # H = self.fc_hsv(x)
-        #
-        # img_hsv, gradient_regulariser_hsv = ImageProcessing.adjust_hsv(
-        #     img_hsv, H[0, 0:64])
-        # img_hsv = torch.clamp(img_hsv, 0, 1)
-        #
-        # img_residual = torch.clamp(ImageProcessing.hsv_to_rgb(
-        #    img_hsv.squeeze(0)), 0, 1)
+        img_hsv = ImageProcessing.rgb_to_hsv(img_rgb.squeeze(0))
+        img_hsv = torch.clamp(img_hsv, 0, 1)
+        feat_hsv = torch.cat((feat, img_hsv.unsqueeze(0)), 1)
 
-        img = torch.clamp(img + img_rgb.unsqueeze(0), 0, 1)
+        x = self.hsv_layer1(feat_hsv)
+        del feat_hsv
+        x = self.hsv_layer2(x)
+        x = self.hsv_layer3(x)
+        x = self.hsv_layer4(x)
+        x = self.hsv_layer5(x)
+        x = self.hsv_layer6(x)
+        x = self.hsv_layer7(x)
+        x = self.hsv_layer8(x)
+        x = x.view(x.size()[0], -1)
+        x = self.dropout3(x)
+        H = self.fc_hsv(x)
 
-        gradient_regulariser = gradient_regulariser_rgb
+        img_hsv, gradient_regulariser_hsv = ImageProcessing.adjust_hsv(
+            img_hsv, H[0, 0:64])
+        img_hsv = torch.clamp(img_hsv, 0, 1)
+
+        img_residual = torch.clamp(ImageProcessing.hsv_to_rgb(
+           img_hsv.squeeze(0)), 0, 1)
+
+        img = torch.clamp(img + img_residual.unsqueeze(0), 0, 1)
+
+        gradient_regulariser = gradient_regulariser_rgb + \
+            gradient_regulariser_lab+gradient_regulariser_hsv
 
         return img, gradient_regulariser
 
@@ -696,7 +695,7 @@ class GlobalPoolingBlock(Block, nn.Module):
         out = self.avg_pool(x)
         return out
 
-class CURLNet_old(nn.Module):
+class CURLNet_original(nn.Module):
 
     def __init__(self):
         """Initialisation function
@@ -705,7 +704,7 @@ class CURLNet_old(nn.Module):
         :rtype: N/A
 
         """
-        super(CURLNet_old, self).__init__()
+        super(CURLNet_original, self).__init__()
         self.tednet = rgb_ted.TEDModel()
         self.curllayer = CURLLayer()
 
@@ -732,42 +731,42 @@ class CURLNet(nn.Module):
         """
         super(CURLNet, self).__init__()
         self.tednet = rgb_ted.TEDModel()
-        checkpoint = torch.load(
-            "/home/dserrano/Workspace/CURL/pretrained_models/adobe_dpe/curl_validpsnr_23.073045286204017_validloss_0.0701291635632515_testpsnr_23.584083321292365_testloss_0.061363041400909424_epoch_510_model.pt")
-        model_state_dict = checkpoint['model_state_dict']
-        model_state_dict_ted = {k: v for k, v in model_state_dict.items() if not k.startswith('curl')}
-        model_state_dict_ted = {k.replace('tednet.', ''): v for k, v in model_state_dict_ted.items()}
+        # checkpoint = torch.load(
+        #     "/home/dserrano/Workspace/CURL/pretrained_models/adobe_dpe/curl_validpsnr_23.073045286204017_validloss_0.0701291635632515_testpsnr_23.584083321292365_testloss_0.061363041400909424_epoch_510_model.pt")
+        # model_state_dict = checkpoint['model_state_dict']
+        # model_state_dict_ted = {k: v for k, v in model_state_dict.items() if not k.startswith('curl')}
+        # model_state_dict_ted = {k.replace('tednet.', ''): v for k, v in model_state_dict_ted.items()}
 
-        self.tednet.load_state_dict(model_state_dict_ted)
+        #self.tednet.load_state_dict(model_state_dict_ted)
         self.tednet.eval()
 
         self.color_naming = ColorNaming()
 
-        model_state_dict_curl = {k: v for k, v in model_state_dict.items() if not k.startswith('ted')}
-        model_state_dict_curl = {k.replace('curllayer.', ''): v for k, v in model_state_dict_curl.items()}
+        # model_state_dict_curl = {k: v for k, v in model_state_dict.items() if not k.startswith('ted')}
+        # model_state_dict_curl = {k.replace('curllayer.', ''): v for k, v in model_state_dict_curl.items()}
 
         self.curl_orange = CURLLayer()
-        self.curl_orange.load_state_dict(model_state_dict_curl)
+        #self.curl_orange.load_state_dict(model_state_dict_curl)
         self.curl_orange = self.curl_orange.cuda()
 
         self.curl_achromatic = CURLLayer()
-        self.curl_achromatic.load_state_dict(model_state_dict_curl)
+        # self.curl_achromatic.load_state_dict(model_state_dict_curl)
         self.curl_achromatic = self.curl_achromatic.cuda()
 
         self.curl_pink = CURLLayer()
-        self.curl_pink.load_state_dict(model_state_dict_curl)
+        # self.curl_pink.load_state_dict(model_state_dict_curl)
         self.curl_pink = self.curl_pink.cuda()
 
         self.curl_red = CURLLayer()
-        self.curl_red.load_state_dict(model_state_dict_curl)
+        # self.curl_red.load_state_dict(model_state_dict_curl)
         self.curl_red = self.curl_red.cuda()
 
         self.curl_green = CURLLayer()
-        self.curl_green.load_state_dict(model_state_dict_curl)
+        # self.curl_green.load_state_dict(model_state_dict_curl)
         self.curl_green = self.curl_green.cuda()
 
         self.curl_blue = CURLLayer()
-        self.curl_blue.load_state_dict(model_state_dict_curl)
+        # self.curl_blue.load_state_dict(model_state_dict_curl)
         self.curl_blue = self.curl_blue.cuda()
 
     def forward(self, img):
@@ -811,41 +810,41 @@ class CURLNet_new(nn.Module):
         """
         super(CURLNet_new, self).__init__()
         self.tednet = rgb_ted.TEDModel()
-        checkpoint = torch.load("/home/dserrano/Workspace/CURL/pretrained_models/adobe_dpe/curl_validpsnr_23.073045286204017_validloss_0.0701291635632515_testpsnr_23.584083321292365_testloss_0.061363041400909424_epoch_510_model.pt")
-        model_state_dict = checkpoint['model_state_dict']
-        model_state_dict_ted = {k: v for k, v in model_state_dict.items() if not k.startswith('curl')}
-        model_state_dict_ted = {k.replace('tednet.', ''): v for k, v in model_state_dict_ted.items()}
+        #checkpoint = torch.load("/home/dserrano/Workspace/CURL/pretrained_models/adobe_dpe/curl_validpsnr_23.073045286204017_validloss_0.0701291635632515_testpsnr_23.584083321292365_testloss_0.061363041400909424_epoch_510_model.pt")
+        # model_state_dict = checkpoint['model_state_dict']
+        # model_state_dict_ted = {k: v for k, v in model_state_dict.items() if not k.startswith('curl')}
+        # model_state_dict_ted = {k.replace('tednet.', ''): v for k, v in model_state_dict_ted.items()}
 
-        self.tednet.load_state_dict(model_state_dict_ted)
+        #self.tednet.load_state_dict(model_state_dict_ted)
         self.tednet.eval()
 
         self.color_naming = ColorNaming()
 
-        model_state_dict_curl = {k: v for k, v in model_state_dict.items() if not k.startswith('ted')}
-        model_state_dict_curl = {k.replace('curllayer.', ''): v for k, v in model_state_dict_curl.items()}
+        # model_state_dict_curl = {k: v for k, v in model_state_dict.items() if not k.startswith('ted')}
+        # model_state_dict_curl = {k.replace('curllayer.', ''): v for k, v in model_state_dict_curl.items()}
 
         self.curl_orange = CURLLayer()
-        self.curl_orange.load_state_dict(model_state_dict_curl)
+        #self.curl_orange.load_state_dict(model_state_dict_curl)
         self.curl_orange = self.curl_orange.cuda()
 
         self.curl_achromatic = CURLLayer()
-        self.curl_achromatic.load_state_dict(model_state_dict_curl)
+        #self.curl_achromatic.load_state_dict(model_state_dict_curl)
         self.curl_achromatic = self.curl_achromatic.cuda()
 
         self.curl_pink = CURLLayer()
-        self.curl_pink.load_state_dict(model_state_dict_curl)
+        #self.curl_pink.load_state_dict(model_state_dict_curl)
         self.curl_pink = self.curl_pink.cuda()
 
         self.curl_red = CURLLayer()
-        self.curl_red.load_state_dict(model_state_dict_curl)
+        #self.curl_red.load_state_dict(model_state_dict_curl)
         self.curl_red = self.curl_red.cuda()
 
         self.curl_green = CURLLayer()
-        self.curl_green.load_state_dict(model_state_dict_curl)
+        #self.curl_green.load_state_dict(model_state_dict_curl)
         self.curl_green = self.curl_green.cuda()
 
         self.curl_blue = CURLLayer()
-        self.curl_blue.load_state_dict(model_state_dict_curl)
+        #self.curl_blue.load_state_dict(model_state_dict_curl)
         self.curl_blue = self.curl_blue.cuda()
 
     def forward(self, img):
