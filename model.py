@@ -16,6 +16,8 @@ import numpy as np
 import sys
 import torch
 import torch.nn as nn
+import os
+import pathlib
 from collections import defaultdict
 import rgb_ted
 from util import ImageProcessing
@@ -1000,7 +1002,7 @@ class CurveNet(nn.Module):
         return x
 
 class ColorNaming():
-    def __init__(self, matrix_path="/home/dserrano/Downloads/w2c.mat", threshold=0.1, mode='6'):
+    def __init__(self, matrix_path=os.path.join(str(pathlib.Path(__file__).parent.resolve()), "color_naming_images/w2c.mat"), threshold=0.1, mode='6'):
         self.matrix = to_tensor(loadmat(matrix_path)['w2c'])
         self.threshold = threshold
 
