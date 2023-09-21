@@ -253,7 +253,7 @@ class ImageProcessing(object):
                 image_batchA[i, 0:3, :, :])
             imageB = ImageProcessing.swapimdims_3HW_HW3(
                 image_batchB[i, 0:3, :, :])
-            ssim_val += ssim(imageA, imageB, data_range=imageA.max() - imageA.min(), multichannel=True,
+            ssim_val += ssim(imageA, imageB, data_range=imageA.max() - imageA.min(), multichannel=True, channel_axis=2,
                              gaussian_weights=True, win_size=11)
 
         return ssim_val / num_images
