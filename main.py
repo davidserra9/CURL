@@ -160,7 +160,7 @@ def main():
                                                          shuffle=False,
                                                          num_workers=0)
    
-        net = model.CURLNet_original()
+        net = model.CURLNet_new()
         net.cuda()
 
         logging.info('######### Network created #########')

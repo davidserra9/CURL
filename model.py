@@ -809,13 +809,13 @@ class CURLNet_new(nn.Module):
         """
         super(CURLNet_new, self).__init__()
         self.tednet = rgb_ted.TEDModel()
-        #checkpoint = torch.load("/home/dserrano/Workspace/CURL/pretrained_models/adobe_dpe/curl_validpsnr_23.073045286204017_validloss_0.0701291635632515_testpsnr_23.584083321292365_testloss_0.061363041400909424_epoch_510_model.pt")
+        # checkpoint = torch.load("/home/dserrano/Workspace/CURL/pretrained_models/adobe_dpe/curl_validpsnr_23.073045286204017_validloss_0.0701291635632515_testpsnr_23.584083321292365_testloss_0.061363041400909424_epoch_510_model.pt")
         # model_state_dict = checkpoint['model_state_dict']
         # model_state_dict_ted = {k: v for k, v in model_state_dict.items() if not k.startswith('curl')}
         # model_state_dict_ted = {k.replace('tednet.', ''): v for k, v in model_state_dict_ted.items()}
 
         #self.tednet.load_state_dict(model_state_dict_ted)
-        self.tednet.eval()
+        #self.tednet.eval()
 
         self.color_naming = ColorNaming()
 
