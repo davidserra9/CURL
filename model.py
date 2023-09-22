@@ -735,19 +735,19 @@ class CURLNet(nn.Module):
         """
         super(CURLNet, self).__init__()
         self.tednet = rgb_ted.TEDModel()
-        # checkpoint = torch.load(
-        #     "/home/dserrano/Workspace/CURL/pretrained_models/adobe_dpe/curl_validpsnr_23.073045286204017_validloss_0.0701291635632515_testpsnr_23.584083321292365_testloss_0.061363041400909424_epoch_510_model.pt")
-        # model_state_dict = checkpoint['model_state_dict']
-        # model_state_dict_ted = {k: v for k, v in model_state_dict.items() if not k.startswith('curl')}
-        # model_state_dict_ted = {k.replace('tednet.', ''): v for k, v in model_state_dict_ted.items()}
+        checkpoint = torch.load(
+            "/home/dserrano/Workspace/CURL/log_2023-09-12_17-15-10/curl_validpsnr_22.405160786330203_validloss_0.07452978938817978_testpsnr_23.671673845595638_testloss_0.06112174317240715_epoch_70_model.pt")
+        model_state_dict = checkpoint['model_state_dict']
+        model_state_dict_ted = {k: v for k, v in model_state_dict.items() if not k.startswith('curl')}
+        model_state_dict_ted = {k.replace('tednet.', ''): v for k, v in model_state_dict_ted.items()}
 
-        #self.tednet.load_state_dict(model_state_dict_ted)
+        self.tednet.load_state_dict(model_state_dict_ted)
         self.tednet.eval()
 
         self.color_naming = ColorNaming()
 
-        # model_state_dict_curl = {k: v for k, v in model_state_dict.items() if not k.startswith('ted')}
-        # model_state_dict_curl = {k.replace('curllayer.', ''): v for k, v in model_state_dict_curl.items()}
+        model_state_dict_curl = {k: v for k, v in model_state_dict.items() if not k.startswith('ted')}
+        model_state_dict_curl = {k.replace('curllayer.', ''): v for k, v in model_state_dict_curl.items()}
 
         self.curl_orange = CURLLayer()
         #self.curl_orange.load_state_dict(model_state_dict_curl)
@@ -814,42 +814,81 @@ class CURLNet_new(nn.Module):
         """
         super(CURLNet_new, self).__init__()
         self.tednet = rgb_ted.TEDModel()
-        # checkpoint = torch.load("/home/dserrano/Workspace/CURL/pretrained_models/adobe_dpe/curl_validpsnr_23.073045286204017_validloss_0.0701291635632515_testpsnr_23.584083321292365_testloss_0.061363041400909424_epoch_510_model.pt")
-        # model_state_dict = checkpoint['model_state_dict']
-        # model_state_dict_ted = {k: v for k, v in model_state_dict.items() if not k.startswith('curl')}
-        # model_state_dict_ted = {k.replace('tednet.', ''): v for k, v in model_state_dict_ted.items()}
+        checkpoint = torch.load(
+            "/home/dserrano/Workspace/CURL/log_2023-09-12_17-15-10/curl_validpsnr_22.405160786330203_validloss_0.07452978938817978_testpsnr_23.671673845595638_testloss_0.06112174317240715_epoch_70_model.pt")
+        model_state_dict = checkpoint['model_state_dict']
+        model_state_dict_ted = {k: v for k, v in model_state_dict.items() if not k.startswith('curl')}
+        model_state_dict_ted = {k.replace('tednet.', ''): v for k, v in model_state_dict_ted.items()}
 
-        #self.tednet.load_state_dict(model_state_dict_ted)
-        #self.tednet.eval()
+        self.tednet.load_state_dict(model_state_dict_ted)
+        self.tednet.eval()
 
         self.color_naming = ColorNaming()
 
-        # model_state_dict_curl = {k: v for k, v in model_state_dict.items() if not k.startswith('ted')}
-        # model_state_dict_curl = {k.replace('curllayer.', ''): v for k, v in model_state_dict_curl.items()}
+        model_state_dict_curl = {k: v for k, v in model_state_dict.items() if not k.startswith('ted')}
+        model_state_dict_curl = {k.replace('curllayer.', ''): v for k, v in model_state_dict_curl.items()}
 
-        self.curl_orange = CURLLayer()
-        #self.curl_orange.load_state_dict(model_state_dict_curl)
-        self.curl_orange = self.curl_orange.cuda()
+        model_state_dict_achromatic = {k: v for k, v in model_state_dict_curl.items() if k.startswith('curl_achromatic')}
+        model_state_dict_achromatic = {k.replace('curl_achromatic.', ''): v for k, v in model_state_dict_achromatic.items()}
 
-        self.curl_achromatic = CURLLayer()
-        #self.curl_achromatic.load_state_dict(model_state_dict_curl)
-        self.curl_achromatic = self.curl_achromatic.cuda()
+        model_state_dict_orange = {k: v for k, v in model_state_dict_curl.items() if k.startswith('curl_orange')}
+        model_state_dict_orange = {k.replace('curl_orange.', ''): v for k, v in model_state_dict_orange.items()}
 
-        self.curl_pink = CURLLayer()
-        #self.curl_pink.load_state_dict(model_state_dict_curl)
-        self.curl_pink = self.curl_pink.cuda()
+        model_state_dict_pink = {k: v for k, v in model_state_dict_curl.items() if k.startswith('curl_pink')}
+        model_state_dict_pink = {k.replace('curl_pink.', ''): v for k, v in model_state_dict_pink.items()}
 
-        self.curl_red = CURLLayer()
-        #self.curl_red.load_state_dict(model_state_dict_curl)
-        self.curl_red = self.curl_red.cuda()
+        model_state_dict_red = {k: v for k, v in model_state_dict_curl.items() if k.startswith('curl_red')}
+        model_state_dict_red = {k.replace('curl_red.', ''): v for k, v in model_state_dict_red.items()}
 
-        self.curl_green = CURLLayer()
-        #self.curl_green.load_state_dict(model_state_dict_curl)
-        self.curl_green = self.curl_green.cuda()
+        model_state_dict_blue = {k: v for k, v in model_state_dict_curl.items() if k.startswith('curl_blue')}
+        model_state_dict_blue = {k.replace('curl_blue.', ''): v for k, v in model_state_dict_blue.items()}
+
+        model_state_dict_green = {k: v for k, v in model_state_dict_curl.items() if k.startswith('curl_green')}
+        model_state_dict_green = {k.replace('curl_green.', ''): v for k, v in model_state_dict_green.items()}
+
+        self.curl_black = CURLLayer()
+        self.curl_black.load_state_dict(model_state_dict_achromatic)
+        self.curl_black = self.curl_black.cuda()
 
         self.curl_blue = CURLLayer()
-        #self.curl_blue.load_state_dict(model_state_dict_curl)
+        self.curl_blue.load_state_dict(model_state_dict_blue)
         self.curl_blue = self.curl_blue.cuda()
+
+        self.curl_brown = CURLLayer()
+        self.curl_brown.load_state_dict(model_state_dict_orange)
+        self.curl_brown = self.curl_brown.cuda()
+
+        self.curl_grey = CURLLayer()
+        self.curl_grey.load_state_dict(model_state_dict_achromatic)
+        self.curl_grey = self.curl_grey.cuda()
+
+        self.curl_green = CURLLayer()
+        self.curl_green.load_state_dict(model_state_dict_green)
+        self.curl_green = self.curl_green.cuda()
+
+        self.curl_orange = CURLLayer()
+        self.curl_orange.load_state_dict(model_state_dict_orange)
+        self.curl_orange = self.curl_orange.cuda()
+
+        self.curl_pink = CURLLayer()
+        self.curl_pink.load_state_dict(model_state_dict_pink)
+        self.curl_pink = self.curl_pink.cuda()
+
+        self.curl_purple = CURLLayer()
+        self.curl_purple.load_state_dict(model_state_dict_pink)
+        self.curl_purple = self.curl_purple.cuda()
+
+        self.curl_red = CURLLayer()
+        self.curl_red.load_state_dict(model_state_dict_red)
+        self.curl_red = self.curl_red.cuda()
+
+        self.curl_white = CURLLayer()
+        self.curl_white.load_state_dict(model_state_dict_achromatic)
+        self.curl_white = self.curl_white.cuda()
+
+        self.curl_yellow = CURLLayer()
+        self.curl_yellow.load_state_dict(model_state_dict_orange)
+        self.curl_yellow = self.curl_yellow.cuda()
 
     def forward(self, img):
         """Neural network forward function
@@ -867,55 +906,25 @@ class CURLNet_new(nn.Module):
         img = torch.clamp(img, 0, 1)
         x_color, x_probs = self.color_naming(img)
 
-        x_color = x_color.cuda()
+        #x_color = x_color.cuda()
         x_probs = x_probs.cuda()
 
-        x_0, gradient_0 = self.curl_orange(x)
-        x_1, gradient_1 = self.curl_achromatic(x)
-        x_2, gradient_2 = self.curl_pink(x)
-        x_3, gradient_3 = self.curl_red(x)
+        x_0, gradient_0 = self.curl_black(x)
+        x_1, gradient_1 = self.curl_blue(x)
+        x_2, gradient_2 = self.curl_brown(x)
+        x_3, gradient_3 = self.curl_grey(x)
         x_4, gradient_4 = self.curl_green(x)
-        x_5, gradient_5 = self.curl_blue(x)
+        x_5, gradient_5 = self.curl_orange(x)
+        x_6, gradient_6 = self.curl_pink(x)
+        x_7, gradient_7 = self.curl_purple(x)
+        x_8, gradient_8 = self.curl_red(x)
+        x_9, gradient_9 = self.curl_white(x)
+        x_10, gradient_10 = self.curl_yellow(x)
 
-        x = torch.stack([x_0, x_1, x_2, x_3, x_4, x_5], dim=0)
+        x = torch.stack([x_0, x_1, x_2, x_3, x_4, x_5, x_6, x_7, x_8, x_9, x_10], dim=0)
         x = torch.sum(x*x_probs.unsqueeze(2), dim=0)
 
-        # import cv2
-        # cv2.imwrite("/home/dserrano/Desktop/cn_curl.jpg", x.detach().cpu().squeeze().permute(1,2,0).numpy()[...,::-1]*255)
-        #
-        # import matplotlib.pyplot as plt
-        # plt.subplot(261)
-        # plt.imshow(x_0.detach().cpu().squeeze().permute(1, 2, 0).numpy())
-        # plt.subplot(262)
-        # plt.imshow(x_1.detach().cpu().squeeze().permute(1, 2, 0).numpy())
-        # plt.subplot(263)
-        # plt.imshow(x_2.detach().cpu().squeeze().permute(1, 2, 0).numpy())
-        # plt.subplot(264)
-        # plt.imshow(x_3.detach().cpu().squeeze().permute(1, 2, 0).numpy())
-        # plt.subplot(265)
-        # plt.imshow(x_4.detach().cpu().squeeze().permute(1, 2, 0).numpy())
-        # plt.subplot(266)
-        # plt.imshow(x_5.detach().cpu().squeeze().permute(1, 2, 0).numpy())
-        # plt.subplot(267)
-        # plt.imshow(x_probs.detach().cpu()[0].squeeze().numpy())
-        # plt.subplot(268)
-        # plt.imshow(x_probs.detach().cpu()[1].squeeze().numpy())
-        # plt.subplot(269)
-        # plt.imshow(x_probs.detach().cpu()[2].squeeze().numpy())
-        # plt.subplot(2,6,10)
-        # plt.imshow(x_probs.detach().cpu()[3].squeeze().numpy())
-        # plt.subplot(2,6,11)
-        # plt.imshow(x_probs.detach().cpu()[4].squeeze().numpy())
-        # plt.subplot(2,6,12)
-        # plt.imshow(x_probs.detach().cpu()[5].squeeze().numpy())
-        # plt.show()
-
-        # x = torch.stack([x_0, x_1, x_2, x_3, x_4, x_5], dim=0)
-        # x = torch.sum(x*x_probs.unsqueeze(2), dim=0)
-
-        #cv2.imwrite("/home/dserrano/Desktop/color_naming_curl.jpg", x.detach().cpu().squeeze().permute(1, 2, 0).numpy()[..., ::-1]*255)
-
-        return x, gradient_0 + gradient_1 + gradient_2 + gradient_3 + gradient_4 + gradient_5
+        return x, gradient_0 + gradient_1 + gradient_2 + gradient_3 + gradient_4 + gradient_5 + gradient_6 + gradient_7 + gradient_8 + gradient_9 + gradient_10
         """Color Naming"""
         # from scipy.io import loadmat
         # from torchvision.transforms.functional import to_tensor
@@ -1047,4 +1056,5 @@ class ColorNaming():
         category_images = torch.stack(category_images, dim=0)
         category_probs = torch.stack(category_probs, dim=0)
 
-        return category_images, category_probs
+        return None, prob_maps
+        #return category_images, category_probs

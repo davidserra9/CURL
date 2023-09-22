@@ -121,7 +121,7 @@ def main():
         logging.info(
             "Performing inference with images in directory: " + inference_img_dirpath)
 
-        net = model.CURLNet_new()
+        net = model.CURLNet_original()
         checkpoint = torch.load(checkpoint_filepath, map_location='cuda')
         net.load_state_dict(checkpoint['model_state_dict'])
         net.eval()
