@@ -709,8 +709,8 @@ class CURLNet_original(nn.Module):
 
         """
         super(CURLNet_original, self).__init__()
-        self.tednet = rgb_ted.TEDModel()
-        self.curllayer = CURLLayer()
+        self.tednet = rgb_ted.TED()
+        #self.curllayer = CURLLayer()
 
     def forward(self, img):
         """Neural network forward function
@@ -721,8 +721,8 @@ class CURLNet_original(nn.Module):
 
         """
         feat = self.tednet(img)
-        img, gradient_regulariser = self.curllayer(feat)
-        return img, gradient_regulariser
+        #img, gradient_regulariser = self.curllayer(feat)
+        return feat, 0
 
 class CURLNet(nn.Module):
 

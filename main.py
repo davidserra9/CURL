@@ -33,6 +33,7 @@ import os
 import metric
 import model
 import sys
+from adabelief_pytorch import AdaBelief
 from tqdm import tqdm
 import wandb
 import pathlib
@@ -160,7 +161,7 @@ def main():
                                                          shuffle=False,
                                                          num_workers=0)
    
-        net = model.CURLNet_new()
+        net = model.CURLNet_original()
         net.cuda()
 
         logging.info('######### Network created #########')
@@ -200,6 +201,8 @@ def main():
         else:
             optimizer = optim.Adam(filter(lambda p: p.requires_grad,
                                       net.parameters()), lr=1e-5, betas=(0.9, 0.999), eps=1e-08, weight_decay=1e-10)
+            # optimizer = AdaBelief(filter(lambda p: p.requires_grad, net.parameters()), lr=5e-05,
+            #                       weight_decouple=True, eps=1e-08, rectify=False, print_change_log=False)
 
         best_valid_psnr = 0.0
 
